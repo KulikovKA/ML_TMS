@@ -1,0 +1,7 @@
+pandas==2.3.3
+numpy==1.26.4
+psycopg2-binary==2.9.11
+sentence-transformers==5.2.2
+tqdm==4.67.1
+scikit-learn==1.8.0
+mlflow==2.10.2

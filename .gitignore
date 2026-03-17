@@ -1,0 +1,6 @@
+postgres_data/
+mlflow_artifacts/
+grafana_data/
+data/
+__pycache__/
+.env

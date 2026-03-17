@@ -1,0 +1,77 @@
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: movie_postgres
+    ports:
+      - "5432:5432" 
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: movies_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d movies_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ml-pipeline:
+    build: .
+    container_name: movie_ml_pipeline
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: movies_db
+      DB_USER: user
+      DB_PASSWORD: password
+      MLFLOW_TRACKING_URI: http://mlflow:5000 
+    volumes:
+      - ./data:/app/data
+    restart: on-failure
+
+  #MLFLOW
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.2
+    container_name: movie_mlflow
+    ports:
+      - "5001:5000" 
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://user:password@db:5432/movies_db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    command: >
+      sh -c "pip install psycopg2-binary && 
+      mlflow server 
+      --backend-store-uri postgresql://user:password@db:5432/movies_db 
+      --default-artifact-root /mlflow/artifacts 
+      --host 0.0.0.0"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+
+  # GRAFANA 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: movie_grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+volumes:
+  postgres_data:
+  mlflow_artifacts:
+  grafana_data:    
