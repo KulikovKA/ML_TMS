@@ -7,7 +7,6 @@ import time
 import os
 import mlflow
 from psycopg2.extras import execute_values
-from sentence_transformers import SentenceTransformer
 from tqdm.auto import tqdm
 
 # Используем переменные окружения для работы в Docker (с фоллбэком на локальные значения)
@@ -24,7 +23,7 @@ MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 mlflow.set_experiment("Movie_Recommendations_Pipeline")
 
-print("Загрузка и обработка CSV...")
+print("[1/6] Загрузка и обработка CSV...", flush=True)
 df = pd.read_csv('./data/lesson36_data/movies_metadata.csv', low_memory=False, on_bad_lines='skip')
 
 # Оставляем только нужные колонки и чистим пропуски
@@ -42,7 +41,7 @@ def extract_genres(genre_str):
 df['clean_genres'] = df['genres'].apply(extract_genres)
 df['combined_text'] = "Title: " + df['title'] + ". Genres: " + df['clean_genres'] + ". Overview: " + df['overview']
 
-print(f"Подготовлено фильмов: {len(df)}")
+print(f"[2/6] Подготовлено фильмов: {len(df)}", flush=True)
 
 def upload_data(embeddings_matrix):
     conn = psycopg2.connect(**DB_CONFIG)
@@ -86,10 +85,13 @@ with mlflow.start_run(run_name="Data_Processing_and_Embedding"):
     mlflow.log_param("dataset_size", len(df))
     mlflow.log_param("batch_size", batch_size_encode)
     
-    print(f"Загрузка модели {model_name}")
+    print(f"[3/6] Импорт sentence-transformers...", flush=True)
+    from sentence_transformers import SentenceTransformer
+
+    print(f"[4/6] Загрузка модели {model_name}", flush=True)
     model = SentenceTransformer(model_name, device='cpu')
     
-    print("Генерация эмбеддингов...")
+    print("[5/6] Генерация эмбеддингов...", flush=True)
     start_encode_time = time.time()
     embeddings = model.encode(
         df['combined_text'].tolist(), 
@@ -101,9 +103,9 @@ with mlflow.start_run(run_name="Data_Processing_and_Embedding"):
     
     # Логируем метрику времени генерации
     mlflow.log_metric("encoding_time_seconds", encode_duration)
-    print(f"Матрица векторов готова: {embeddings.shape}. Время: {encode_duration:.2f} сек.")
+    print(f"Матрица векторов готова: {embeddings.shape}. Время: {encode_duration:.2f} сек.", flush=True)
     
-    print("Загрузка данных в БД...")
+    print("[6/6] Загрузка данных в БД...", flush=True)
     start_db_time = time.time()
     upload_data(embeddings)
     db_duration = time.time() - start_db_time
@@ -111,7 +113,7 @@ with mlflow.start_run(run_name="Data_Processing_and_Embedding"):
     # Логируем метрику времени загрузки
     mlflow.log_metric("db_upload_time_seconds", db_duration)
     
-print("Пайплайн завершен, метрики отправлены в MLflow.")
+print("Пайплайн завершен, метрики отправлены в MLflow.", flush=True)
 # ==========================================
 
 # Функция рекомендаций остается без изменений (только использует обновленный DB_CONFIG)
